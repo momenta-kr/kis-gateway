@@ -5,8 +5,11 @@ import kr.momenta.gateway.kis.client.KisClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
 
 @RequiredArgsConstructor
 @RequestMapping("/api/kis/v1")
@@ -14,6 +17,34 @@ import reactor.core.publisher.Mono;
 public class KisController {
 
     private final KisClient kisClient;
+
+    @GetMapping("/investment-opinion")
+    public Mono<InvestmentOpinionApiResponse> getInvestmentOpinion(
+            @RequestParam String symbol,
+            @RequestParam LocalDateTime now
+            ) {
+        return kisClient.fetchInvestmentOpinion(symbol, now);
+    }
+
+    @GetMapping("/candles")
+    public Mono<CandlesResponse> getCandles(
+            @RequestParam String excd,
+            @RequestParam String symbol,
+            @RequestParam int nmin,
+            @RequestParam int limit
+    ) {
+        return kisClient.fetchCandles(excd, symbol, nmin, limit);
+    }
+
+    @GetMapping("/domestic-stock-period-prices")
+    public Mono<DomesticStockPriceResponse> getCandles(
+            @RequestParam String symbol,
+            @RequestParam String period,
+            @RequestParam String from,
+            @RequestParam String to
+    ) {
+        return kisClient.fetchDomesticStockPeriodPrices(symbol, period, from, to);
+    }
 
     @GetMapping("/top-gainers")
     public Mono<FluctuationResponse> getTopGainers() {
