@@ -4,6 +4,7 @@ import kr.momenta.gateway.kis.api.res.*;
 import kr.momenta.gateway.kis.property.KisProperties;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -26,9 +27,60 @@ import java.util.function.Consumer;
 @Component
 public class KisClient {
 
+    @Qualifier("kisWebClient")
     private final WebClient kisWebClient;
+    @Qualifier("kisStockWebClient")
+    private final WebClient kisStockWebClient;
+
     private final KisTokenService kisTokenService;
     private final KisProperties kisProperties;
+
+    /**
+     * https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/inquire-price
+     * 주식현재가 시세[v1_국내주식-008]
+     */
+    public Mono<DomesticStockCurrentPriceResponse> fetchDomesticStockCurrentPrice(String symbol) {
+        return fetchDomesticStockCurrentPrice(symbol, "J"); // 기본: KRX
+    }
+
+    public Mono<DomesticStockCurrentPriceResponse> fetchDomesticStockCurrentPrice(String symbol, String marketDivCode) {
+        final String normalizedSymbol = normalizeDomesticSymbol(symbol);
+
+        return kisTokenService.getAccessToken()
+                .flatMap(token ->
+                        kisStockWebClient.get()
+                                .uri(uriBuilder -> uriBuilder
+                                        .path("/uapi/domestic-stock/v1/quotations/inquire-price")
+                                        .queryParam("FID_COND_MRKT_DIV_CODE", marketDivCode) // J:KRX, NX:NXT, UN:통합
+                                        .queryParam("FID_INPUT_ISCD", normalizedSymbol)      // 005930 / Q000660(ETN)
+                                        .build())
+                                .headers(commonHeaders("FHKST01010100", token))
+                                .retrieve()
+                                .bodyToMono(DomesticStockCurrentPriceResponse.class)
+                );
+    }
+
+    private static String normalizeDomesticSymbol(String symbol) {
+        if (symbol == null) return "";
+        String s = symbol.trim();
+        if (s.isEmpty()) return s;
+
+        // ETN: "Q" + 6자리 (문서 기준)
+        if (s.matches("^Q\\d{1,6}$")) {
+            String digits = s.substring(1);
+            return "Q" + org.apache.commons.lang3.StringUtils.leftPad(digits, 6, '0');
+        }
+
+        // 일반 종목: 6자리 0-padding
+        if (s.matches("^\\d{1,6}$")) {
+            return org.apache.commons.lang3.StringUtils.leftPad(s, 6, '0');
+        }
+
+        return s;
+    }
+
+
+
 
 
     public Mono<CandlesResponse> fetchCandles(String excd, String symbol, int nmin, int limit) {
@@ -116,7 +168,6 @@ public class KisClient {
         return new BigDecimal(s.trim()).longValue();
     }
 
-
     private BigDecimal bd(String s) {
         if (s == null || s.isBlank()) return BigDecimal.ZERO;
         return new BigDecimal(s.trim());
@@ -164,14 +215,11 @@ public class KisClient {
                                 .bodyToMono(DomesticStockPriceResponse.class));
     }
 
-
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("00yyyyMMdd");
-
     /**
      * https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/invest-opinion
      * 국내주식 종목투자의견 [국내주식-188]
      */
-
     public Mono<InvestmentOpinionApiResponse> fetchInvestmentOpinion(String symbol, LocalDateTime now) {
         return kisTokenService.getAccessToken()
                 .flatMap(token ->
@@ -188,7 +236,6 @@ public class KisClient {
                                 .retrieve()
                                 .bodyToMono(InvestmentOpinionApiResponse.class));
     }
-
 
     /**
      * 국내주식 등락률 순위

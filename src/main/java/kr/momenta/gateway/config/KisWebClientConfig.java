@@ -26,6 +26,16 @@ public class KisWebClientConfig {
     }
 
     @Bean
+    public WebClient kisStockWebClient(KisRateLimitGuard guard) {
+        return WebClient.builder()
+                .baseUrl(kisProperties.getBaseUrl())
+                .filter((req, next) ->
+                        guard.acquireStock(Duration.ofSeconds(10))
+                                .then(next.exchange(req)))
+                .build();
+    }
+
+    @Bean
     public WebClient kisBatchWebClient(KisRateLimitGuard guard) {
         return WebClient.builder()
                 .baseUrl(kisProperties.getBaseUrl())

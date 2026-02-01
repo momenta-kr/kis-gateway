@@ -15,7 +15,15 @@ public class KisRateLimitConfig {
     public RRateLimiter kisGlobalRateLimiter(RedissonClient redissonClient) {
         RRateLimiter limiter = redissonClient.getRateLimiter("rl:kis:global");
         // 앱 전체 합산 20회/초
-        limiter.trySetRate(RateType.OVERALL, 20, Duration.ofSeconds(1));
+        limiter.trySetRate(RateType.OVERALL, 17, Duration.ofSeconds(1));
+        return limiter;
+    }
+
+    @Bean
+    public RRateLimiter kisStockRateLimiter(RedissonClient redissonClient) {
+        RRateLimiter limiter = redissonClient.getRateLimiter("rl:kis:stock");
+        // 앱 전체 합산 20회/초
+        limiter.trySetRate(RateType.OVERALL, 3, Duration.ofSeconds(1));
         return limiter;
     }
 }

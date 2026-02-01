@@ -18,6 +18,12 @@ public class KisController {
 
     private final KisClient kisClient;
 
+    @GetMapping("/domestic-stock-current-price")
+    public Mono<DomesticStockCurrentPriceResponse> getDomesticStockCurrentPrice(String stockCode) {
+        System.out.println(stockCode);
+        return kisClient.fetchDomesticStockCurrentPrice(stockCode);
+    }
+
     @GetMapping("/investment-opinion")
     public Mono<InvestmentOpinionApiResponse> getInvestmentOpinion(
             @RequestParam String symbol,
