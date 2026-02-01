@@ -1,5 +1,7 @@
 package kr.momenta.gateway.kis.client;
 
+import com.esotericsoftware.kryo.util.ObjectMap;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.momenta.gateway.kis.api.res.AccessTokenResponse;
 import kr.momenta.gateway.kis.infra.GlobalToken;
 import kr.momenta.gateway.kis.property.KisProperties;
@@ -12,6 +14,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.DataInput;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,7 @@ public class KisTokenService {
 
     private final WebClient kisWebClient;
     private final KisProperties kisProperties;
+    private final ObjectMapper objectMapper;
 
     // token 저장용 (GlobalToken 직렬화)
     private final ReactiveRedisTemplate<String, GlobalToken> tokenRedis;
@@ -54,10 +58,9 @@ public class KisTokenService {
     }
 
     private Mono<String> getTokenFromRedis() {
-        return tokenRedis.<String, String>opsForHash()
-                .get(TOKEN_KEY, "accessToken")
-                .cast(String.class)
-                .filter(t -> t != null && !t.isBlank());
+        return tokenRedis.<String, String>opsForValue()
+                .get(TOKEN_KEY)
+                .map(GlobalToken::getAccessToken);
     }
 
     private Mono<String> refreshWithDistributedLock() {

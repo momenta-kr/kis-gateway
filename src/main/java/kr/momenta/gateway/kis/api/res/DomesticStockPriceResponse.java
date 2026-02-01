@@ -14,18 +14,6 @@ import java.util.List;
 @Setter
 public class DomesticStockPriceResponse extends BaseResponse {
 
-    /** 성공/실패 여부 */
-    @JsonProperty("rt_cd")
-    private String resultCode;
-
-    /** 응답 코드 */
-    @JsonProperty("msg_cd")
-    private String messageCode;
-
-    /** 응답 메시지 */
-    @JsonProperty("msg1")
-    private String message;
-
     /** 현재 시세 요약 */
     @JsonProperty("output1")
     private Snapshot snapshot;
