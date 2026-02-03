@@ -26,10 +26,9 @@ public class KisController {
 
     @GetMapping("/investment-opinion")
     public Mono<InvestmentOpinionApiResponse> getInvestmentOpinion(
-            @RequestParam String symbol,
-            @RequestParam LocalDateTime now
+            @RequestParam String symbol
             ) {
-        return kisClient.fetchInvestmentOpinion(symbol, now);
+        return kisClient.fetchInvestmentOpinion(symbol);
     }
 
     @GetMapping("/candles")

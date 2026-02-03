@@ -220,7 +220,8 @@ public class KisClient {
      * https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/invest-opinion
      * 국내주식 종목투자의견 [국내주식-188]
      */
-    public Mono<InvestmentOpinionApiResponse> fetchInvestmentOpinion(String symbol, LocalDateTime now) {
+    public Mono<InvestmentOpinionApiResponse> fetchInvestmentOpinion(String symbol) {
+        LocalDateTime now = LocalDateTime.now();
         return kisTokenService.getAccessToken()
                 .flatMap(token ->
                         kisWebClient.get()
@@ -335,7 +336,6 @@ public class KisClient {
                                                 .queryParam("FID_INPUT_PRICE_2", "")
                                                 .queryParam("FID_VOL_CNT", "")
                                                 .queryParam("FID_INPUT_DATE_1", "")
-
                                                 .build())
                                 .headers(commonHeaders("FHPST01710000", token))
                                 .retrieve()
