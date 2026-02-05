@@ -1,9 +1,9 @@
 server:
   port: 8766
+
 spring:
   application:
     name: kis-gateway
-
 
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:default}
@@ -14,4 +14,3 @@ spring:
     config:
       username: ${SPRING_CLOUD_CONFIG_USERNAME}
       password: ${SPRING_CLOUD_CONFIG_PASSWORD}
-

@@ -22,4 +22,11 @@ public class GlobalToken implements Serializable {
         token.setAccessTokenExpired(resp.getAccessTokenExpired());
         return token;
     }
+
+    public static GlobalToken ws(String approvalKey) {
+        GlobalToken token = new GlobalToken();
+        token.setId("globalWsToken");
+        token.setAccessToken(approvalKey);
+        return token;
+    }
 }

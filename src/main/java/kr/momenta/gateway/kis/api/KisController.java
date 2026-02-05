@@ -18,6 +18,11 @@ public class KisController {
 
     private final KisClient kisClient;
 
+    @GetMapping("/tokens/ws")
+    public Mono<String> getWsToken() {
+        return kisClient.fetchWsToken();
+    }
+
     @GetMapping("/domestic-stock-current-price")
     public Mono<DomesticStockCurrentPriceResponse> getDomesticStockCurrentPrice(String stockCode) {
         System.out.println(stockCode);
@@ -90,12 +95,4 @@ public class KisController {
     public Mono<TradeStrengthResponse> getTradeStrengthRanking() {
         return kisClient.fetchTradeStrengthRanking();
     }
-
-
-
-
-
-
-
-
 }

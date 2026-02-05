@@ -29,6 +29,9 @@ public class KisTokenService {
     private static final String TOKEN_KEY = "token:globalToken";
     private static final String LOCK_KEY  = "lock:token:globalToken";
 
+    private static final String WEBSOCKET_TOKEN_KEY = "token:websocketToken";
+    private static final String WEBSOCKET_LOCK_KEY  = "lock:token:websocketToken";
+
     // 토큰 TTL 여유(만료 N초 전 갱신)
     private static final long SAFETY_SECONDS = 60;
 
@@ -51,6 +54,7 @@ public class KisTokenService {
 
     // 인스턴스 내부 중복 호출 방지(in-flight)
     private final AtomicReference<Mono<String>> inFlight = new AtomicReference<>();
+    private final AtomicReference<Mono<String>> websocketInFlight = new AtomicReference<>();
 
     public Mono<String> getAccessToken() {
         return getTokenFromRedis()
@@ -144,6 +148,102 @@ public class KisTokenService {
         RedisScript<Long> script = RedisScript.of(lua, Long.class);
 
         return lockRedis.execute(script, List.of(LOCK_KEY), lockValue)
+                .next()
+                .then();
+    }
+
+    // ========== WebSocket Token Methods ==========
+
+    public Mono<String> getWebSocketToken() {
+        return getWebSocketTokenFromRedis()
+                .switchIfEmpty(Mono.defer(this::refreshWebSocketTokenWithDistributedLock));
+    }
+
+    private Mono<String> getWebSocketTokenFromRedis() {
+        return tokenRedis.<String, String>opsForValue()
+                .get(WEBSOCKET_TOKEN_KEY)
+                .map(GlobalToken::getAccessToken);
+    }
+
+    private Mono<String> refreshWebSocketTokenWithDistributedLock() {
+        // 같은 인스턴스 안에서 몰리면 한 번만 갱신하도록 in-flight 공유
+        Mono<String> existing = websocketInFlight.get();
+        if (existing != null) return existing;
+
+        Mono<String> created = Mono.defer(() -> {
+                    String lockValue = UUID.randomUUID().toString();
+
+                    return tryAcquireWebSocketLock(lockValue)
+                            .flatMap(acquired -> {
+                                if (acquired) {
+                                    // ✅ 내가 락 잡음 → 토큰 발급 후 저장 → 락 해제
+                                    return requestAndCacheWebSocketToken()
+                                            .flatMap(token -> releaseWebSocketLock(lockValue).thenReturn(token));
+                                }
+                                // ❌ 락 못 잡음 → 누군가 갱신 중 → 토큰이 채워질 때까지 기다림
+                                return waitForWebSocketTokenOrTimeout();
+                            });
+                })
+                .doFinally(sig -> websocketInFlight.set(null))
+                .cache(); // 같은 Mono를 여러 구독자가 공유
+
+        if (websocketInFlight.compareAndSet(null, created)) {
+            return created;
+        }
+        Mono<String> winner = websocketInFlight.get();
+        return winner != null ? winner : created;
+    }
+
+    private Mono<Boolean> tryAcquireWebSocketLock(String lockValue) {
+        // SETNX + TTL
+        return lockRedis.opsForValue().setIfAbsent(WEBSOCKET_LOCK_KEY, lockValue, LOCK_TTL)
+                .map(Boolean.TRUE::equals)
+                .onErrorReturn(false);
+    }
+
+    private Mono<String> waitForWebSocketTokenOrTimeout() {
+        // 200ms 간격으로 WEBSOCKET_TOKEN_KEY를 확인 → 생기면 바로 반환
+        return Flux.interval(WAIT_INTERVAL)
+                .flatMap(tick -> getWebSocketTokenFromRedis())
+                .next() // 첫 토큰만
+                .timeout(WAIT_TIMEOUT)
+                // 기다렸는데도 안 생기면(락 TTL 만료/장애 등) 다시 한번 refresh 시도(재귀)
+                .onErrorResume(TimeoutException.class, ex ->
+                        getWebSocketTokenFromRedis().switchIfEmpty(Mono.defer(this::refreshWebSocketTokenWithDistributedLock))
+                );
+    }
+
+    private Mono<String> requestAndCacheWebSocketToken() {
+        return kisWebClient.post()
+                .uri("/oauth2/Approval")
+                .bodyValue(Map.of(
+                        "grant_type", "client_credentials",
+                        "appkey", kisProperties.getAppKey(),
+                        "secretkey", kisProperties.getAppSecret()
+                ))
+                .retrieve()
+                .bodyToMono(String.class)
+                .flatMap(approvalKey -> {
+                    long ttlSec = Math.max(SAFETY_SECONDS, 86_400 - SAFETY_SECONDS);
+                    Duration ttl = Duration.ofSeconds(ttlSec);
+                    return tokenRedis.opsForValue()
+                            .set(WEBSOCKET_TOKEN_KEY, GlobalToken.ws(approvalKey), ttl)
+                            .thenReturn(approvalKey);
+                });
+    }
+
+    private Mono<Void> releaseWebSocketLock(String lockValue) {
+        // "내가 잡은 락"만 지우기 (GET==lockValue 일 때만 DEL)
+        String lua =
+                "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                        "  return redis.call('del', KEYS[1]) " +
+                        "else " +
+                        "  return 0 " +
+                        "end";
+
+        RedisScript<Long> script = RedisScript.of(lua, Long.class);
+
+        return lockRedis.execute(script, List.of(WEBSOCKET_LOCK_KEY), lockValue)
                 .next()
                 .then();
     }

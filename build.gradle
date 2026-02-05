@@ -74,7 +74,7 @@ jib {
 
 	to {
 		image = "docker.io/nohyunha95/kis-gateway"
-		tags = ["0.0.1", "latest"]
+		tags = ["0.0.3", "latest"]
 	}
 
 	container {

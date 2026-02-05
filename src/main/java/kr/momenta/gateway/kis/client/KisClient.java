@@ -399,4 +399,8 @@ public class KisClient {
             httpHeaders.set("custtype", "P");
         };
     }
+
+    public Mono<String> fetchWsToken() {
+        return kisTokenService.getWebSocketToken();
+    }
 }
